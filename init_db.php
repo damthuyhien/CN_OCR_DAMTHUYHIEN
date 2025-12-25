@@ -1,5 +1,4 @@
 <?php
-
 /* ===============================
    THIẾT LẬP ĐƯỜNG DẪN DATABASE
 ================================ */
@@ -10,26 +9,14 @@ $dbFile = $dbDir . '/database.sqlite';
    TẠO THƯ MỤC DB
 ================================ */
 if (!is_dir($dbDir)) {
-    if (!mkdir($dbDir, 0777, true)) {
-        die("❌ Không thể tạo thư mục db. Vui lòng kiểm tra quyền ghi.");
-    }
-    echo "📁 Đã tạo thư mục db<br>";
-} else {
-    echo "ℹ️ Thư mục db đã tồn tại<br>";
+    mkdir($dbDir, 0777, true);
 }
 
 /* ===============================
    TẠO FILE SQLITE
 ================================ */
 if (!file_exists($dbFile)) {
-    $fp = fopen($dbFile, 'w');
-    if (!$fp) {
-        die("❌ Không thể tạo file database.sqlite");
-    }
-    fclose($fp);
-    echo "✅ Đã tạo file database.sqlite<br>";
-} else {
-    echo "ℹ️ File database.sqlite đã tồn tại<br>";
+    fopen($dbFile, 'w');
 }
 
 /* ===============================
@@ -38,23 +25,28 @@ if (!file_exists($dbFile)) {
 try {
     $db = new PDO("sqlite:" . $dbFile);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    echo "✅ Kết nối SQLite thành công<br>";
+
+    // ⚠️ CỰC KỲ QUAN TRỌNG: BẬT KHÓA NGOẠI SQLITE
+    $db->exec("PRAGMA foreign_keys = ON");
+
 } catch (PDOException $e) {
     die("❌ Lỗi kết nối DB: " . $e->getMessage());
 }
 
 /* ===============================
-   BẢNG USERS (CÓ PHÂN QUYỀN)
+   BẢNG USERS
 ================================ */
 $db->exec("
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    role TEXT DEFAULT 'user'
+    role TEXT DEFAULT 'user',
+    status TEXT DEFAULT 'active',
+    avatar TEXT DEFAULT 'default.png',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 ");
-echo "✅ Bảng users đã sẵn sàng<br>";
 
 /* ===============================
    BẢNG OCR HISTORY
@@ -64,33 +56,41 @@ CREATE TABLE IF NOT EXISTS ocr_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     image_path TEXT,
+    invoice_type TEXT,
     result TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    status TEXT DEFAULT 'success',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 )
 ");
-echo "✅ Bảng ocr_history đã sẵn sàng<br>";
+
+/* ===============================
+   BẢNG INVALID DATA
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS invalid_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ocr_id INTEGER NOT NULL,
+    issue TEXT NOT NULL,
+    checked_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(ocr_id) REFERENCES ocr_history(id) ON DELETE CASCADE,
+    FOREIGN KEY(checked_by) REFERENCES users(id) ON DELETE SET NULL
+)
+");
 
 /* ===============================
    TẠO ADMIN MẶC ĐỊNH
 ================================ */
-$checkAdmin = $db
-    ->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")
-    ->fetchColumn();
+$checkAdmin = $db->query("
+    SELECT COUNT(*) FROM users WHERE role = 'admin'
+")->fetchColumn();
 
 if ($checkAdmin == 0) {
     $adminPass = password_hash("admin123", PASSWORD_DEFAULT);
-
     $stmt = $db->prepare("
-        INSERT INTO users (username, password, role)
-        VALUES (?, ?, 'admin')
+        INSERT INTO users (username, password, role, status, created_at)
+        VALUES (?, ?, 'admin', 'active', datetime('now','localtime'))
     ");
     $stmt->execute(["admin", $adminPass]);
-
-    echo "👑 Admin mặc định đã được tạo<br>";
-    echo "➡️ Tài khoản: <b>admin</b> | Mật khẩu: <b>admin123</b><br>";
-} else {
-    echo "ℹ️ Admin đã tồn tại<br>";
 }
-
-echo "<br>🎉 <b>Khởi tạo Database & Admin thành công!</b>";
-?>
