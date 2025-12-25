@@ -1,54 +1,96 @@
 <?php
 
-// Thư mục DB
-$dbDir = __DIR__ . '/db';
+/* ===============================
+   THIẾT LẬP ĐƯỜNG DẪN DATABASE
+================================ */
+$dbDir  = __DIR__ . '/db';
 $dbFile = $dbDir . '/database.sqlite';
 
-// Tạo thư mục db nếu chưa tồn tại
-if(!is_dir($dbDir)){
-    if(!mkdir($dbDir, 0777, true)){
-        die("❌ Không thể tạo thư mục db. Hãy kiểm tra quyền ghi.");
+/* ===============================
+   TẠO THƯ MỤC DB
+================================ */
+if (!is_dir($dbDir)) {
+    if (!mkdir($dbDir, 0777, true)) {
+        die("❌ Không thể tạo thư mục db. Vui lòng kiểm tra quyền ghi.");
     }
-}
-
-// Tạo file SQLite nếu chưa tồn tại
-if(!file_exists($dbFile)){
-    $createFile = fopen($dbFile, 'w');
-    if(!$createFile){
-        die("❌ Không thể tạo file database.sqlite. Hãy kiểm tra quyền ghi của thư mục db.");
-    }
-    fclose($createFile);
-    echo "✅ File database.sqlite đã được tạo thành công.<br>";
+    echo "📁 Đã tạo thư mục db<br>";
 } else {
-    echo "ℹ️ File database.sqlite đã tồn tại.<br>";
+    echo "ℹ️ Thư mục db đã tồn tại<br>";
 }
 
-// Kết nối SQLite
+/* ===============================
+   TẠO FILE SQLITE
+================================ */
+if (!file_exists($dbFile)) {
+    $fp = fopen($dbFile, 'w');
+    if (!$fp) {
+        die("❌ Không thể tạo file database.sqlite");
+    }
+    fclose($fp);
+    echo "✅ Đã tạo file database.sqlite<br>";
+} else {
+    echo "ℹ️ File database.sqlite đã tồn tại<br>";
+}
+
+/* ===============================
+   KẾT NỐI SQLITE
+================================ */
 try {
-    $db = new PDO('sqlite:' . $dbFile);
+    $db = new PDO("sqlite:" . $dbFile);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    echo "✅ Kết nối SQLite thành công.<br>";
+    echo "✅ Kết nối SQLite thành công<br>";
 } catch (PDOException $e) {
-    die("❌ Lỗi kết nối SQLite: " . $e->getMessage());
+    die("❌ Lỗi kết nối DB: " . $e->getMessage());
 }
 
-// Tạo bảng users
-$db->exec("CREATE TABLE IF NOT EXISTS users (
+/* ===============================
+   BẢNG USERS (CÓ PHÂN QUYỀN)
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT
-)");
-echo "✅ Bảng 'users' đã sẵn sàng.<br>";
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'user'
+)
+");
+echo "✅ Bảng users đã sẵn sàng<br>";
 
-// Tạo bảng ocr_history
-$db->exec("CREATE TABLE IF NOT EXISTS ocr_history (
+/* ===============================
+   BẢNG OCR HISTORY
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS ocr_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
+    user_id INTEGER NOT NULL,
     image_path TEXT,
     result TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)");
-echo "✅ Bảng 'ocr_history' đã sẵn sàng.<br>";
+)
+");
+echo "✅ Bảng ocr_history đã sẵn sàng<br>";
 
-echo "<br>🎉 CSN - CN Database đã được khởi tạo hoàn chỉnh!";
+/* ===============================
+   TẠO ADMIN MẶC ĐỊNH
+================================ */
+$checkAdmin = $db
+    ->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+    ->fetchColumn();
+
+if ($checkAdmin == 0) {
+    $adminPass = password_hash("admin123", PASSWORD_DEFAULT);
+
+    $stmt = $db->prepare("
+        INSERT INTO users (username, password, role)
+        VALUES (?, ?, 'admin')
+    ");
+    $stmt->execute(["admin", $adminPass]);
+
+    echo "👑 Admin mặc định đã được tạo<br>";
+    echo "➡️ Tài khoản: <b>admin</b> | Mật khẩu: <b>admin123</b><br>";
+} else {
+    echo "ℹ️ Admin đã tồn tại<br>";
+}
+
+echo "<br>🎉 <b>Khởi tạo Database & Admin thành công!</b>";
 ?>

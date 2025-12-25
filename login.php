@@ -1,19 +1,41 @@
 <?php
 session_start();
-$db = new PDO('sqlite:db/database.sqlite');
 
-if(isset($_POST['username'], $_POST['password'])){
-    $stmt = $db->prepare("SELECT * FROM users WHERE username = ?");
-    $stmt->execute([$_POST['username']]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+$db = new PDO("sqlite:" . __DIR__ . "/db/database.sqlite");
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    if($user && password_verify($_POST['password'], $user['password'])){
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['username'] = $user['username'];
-        header("Location: index.php");
-        exit;
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    if ($username === '' || $password === '') {
+        $error = "Vui lòng nhập đầy đủ thông tin";
     } else {
-        $error = "Sai tên đăng nhập hoặc mật khẩu!";
+        $stmt = $db->prepare("SELECT * FROM users WHERE username = ?");
+        $stmt->execute([$username]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            $error = "Sai tài khoản";
+        } elseif (!password_verify($password, $user['password'])) {
+            $error = "Sai mật khẩu";
+        } else {
+            // OK → lưu session
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+
+            // Điều hướng theo quyền
+            if ($user['role'] === 'admin') {
+                header("Location: admin/dashboard.php");
+            } else {
+                header("Location: index.php");
+            }
+            exit;
+        }
     }
 }
 ?>
@@ -29,15 +51,16 @@ if(isset($_POST['username'], $_POST['password'])){
 
 <div class="container">
     <h2>Đăng nhập</h2>
+
+    <?php if ($error): ?>
+        <p style="color:red; text-align:center;"><?php echo $error; ?></p>
+    <?php endif; ?>
+
     <form method="POST">
         <input type="text" name="username" placeholder="Tên đăng nhập" required>
         <input type="password" name="password" placeholder="Mật khẩu" required>
         <button type="submit">Đăng nhập</button>
     </form>
-
-    <?php if(isset($error)): ?>
-        <p style="color:red; text-align:center; margin-top:15px;"><?php echo $error; ?></p>
-    <?php endif; ?>
 
     <p style="text-align:center; margin-top:20px;">
         Chưa có tài khoản? <a href="register.php">Đăng ký ngay</a>
