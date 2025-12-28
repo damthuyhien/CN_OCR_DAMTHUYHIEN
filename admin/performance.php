@@ -4,7 +4,11 @@ require __DIR__ . '/../init_db.php';
 include __DIR__ . '/templates/header.php';
 
 // ====== DỮ LIỆU ======
-$total = $db->query("SELECT COUNT(*) FROM ocr_history")->fetchColumn();
+// ====== DỮ LIỆU ======
+$total = $db->query("
+    SELECT COUNT(*) 
+    FROM ocr_history
+")->fetchColumn();
 
 $today = $db->query("
     SELECT COUNT(*) 
@@ -15,16 +19,18 @@ $today = $db->query("
 $valid = $db->query("
     SELECT COUNT(*) 
     FROM ocr_history 
-    WHERE is_valid = 1
+    WHERE status != 'error' OR status IS NULL
 ")->fetchColumn();
 
 $invalid = $db->query("
     SELECT COUNT(*) 
     FROM ocr_history 
-    WHERE is_valid = 0
+    WHERE status = 'error'
 ")->fetchColumn();
 
-$errorRate = $total > 0 ? round(($invalid / $total) * 100, 2) : 0;
+$errorRate = $total > 0 
+    ? round(($invalid / $total) * 100, 2) 
+    : 0;
 ?>
 
 <!-- ===== STYLE ===== -->

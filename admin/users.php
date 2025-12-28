@@ -39,12 +39,14 @@ $users = $db->query("SELECT * FROM users WHERE role='user'")->fetchAll(PDO::FETC
         <tr>
             <td><img src="assets/images/avatar/<?= $u['avatar'] ?>" width="40" class="rounded-circle"></td>
             <td><?= htmlspecialchars($u['username']) ?></td>
-            <td>
-    <?php 
-        if ($u['status'] === 'active') echo 'Hoạt động';
-        elseif ($u['status'] === 'blocked') echo 'Bị khóa';
-        else echo ucfirst($u['status']);
-    ?>
+<td>
+<?php if ($u['status'] === 'active'): ?>
+    <span class="badge bg-success">Hoạt động</span>
+<?php elseif ($u['status'] === 'blocked'): ?>
+    <span class="badge bg-danger">Bị khóa</span>
+<?php else: ?>
+    <span class="badge bg-secondary">Không xác định</span>
+<?php endif; ?>
 </td>
             <td><?= date('d/m/Y H:i', strtotime($u['created_at'])) ?></td>
             <td>

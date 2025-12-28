@@ -45,8 +45,8 @@ footer .subtext {
 </div> <!-- /container -->
 
 <footer>
-    <div>© <?= date('Y') ?> Hệ thống quản lý OCR. All rights reserved.</div>
-    <div class="subtext">Designed with ❤️ by Bé</div>
+    <div>© <?= date('Y') ?> Xây dựng phần mềm nhận dạng văn bản từ ảnh/hóa đơn.</div>
+    <div class="subtext">Đàm Thúy Hiền - 110122074</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

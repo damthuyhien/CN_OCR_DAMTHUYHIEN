@@ -7,18 +7,23 @@ if (!isset($_SESSION['user_id'])) {
 
 require __DIR__ . '/../init_db.php';
 
-/* ===== HÀM XỬ LÝ ẢNH ===== */
+/* ===============================
+   XỬ LÝ ẢNH TRƯỚC KHI OCR
+   Mục tiêu: giảm nhiễu, rõ chữ Việt
+================================ */
 function preprocessImage($srcPath){
     $info = getimagesize($srcPath);
     if (!$info) return false;
 
-    $mime = $info['mime'];
-    if ($mime == 'image/jpeg') {
-        $img = imagecreatefromjpeg($srcPath);
-    } elseif ($mime == 'image/png') {
-        $img = imagecreatefrompng($srcPath);
-    } else {
-        return false;
+    switch ($info['mime']) {
+        case 'image/jpeg':
+            $img = imagecreatefromjpeg($srcPath);
+            break;
+        case 'image/png':
+            $img = imagecreatefrompng($srcPath);
+            break;
+        default:
+            return false;
     }
 
     $w = imagesx($img);
@@ -27,26 +32,27 @@ function preprocessImage($srcPath){
     $new = imagecreatetruecolor($w, $h);
     imagecopy($new, $img, 0, 0, 0, 0, $w, $h);
 
+    // Chuyển xám
     imagefilter($new, IMG_FILTER_GRAYSCALE);
-    imagefilter($new, IMG_FILTER_GAUSSIAN_BLUR);
 
-    for ($x=0;$x<$w;$x++){
-        for ($y=0;$y<$h;$y++){
-            $rgb = imagecolorat($new,$x,$y);
-            $gray = ($rgb>>16)&0xFF;
-            $c = ($gray>150)?255:0;
-            imagesetpixel($new,$x,$y,imagecolorallocate($new,$c,$c,$c));
-        }
-    }
+    // Giảm nhiễu nhẹ
+    imagefilter($new, IMG_FILTER_SMOOTH, 6);
 
-    $out = "uploads/processed_" . basename($srcPath);
-    imagejpeg($new,$out);
+    // Tăng tương phản
+    imagefilter($new, IMG_FILTER_CONTRAST, -15);
+
+    $out = __DIR__ . "/uploads/processed_" . basename($srcPath);
+    imagepng($new, $out);
+
     imagedestroy($img);
     imagedestroy($new);
-    return $out;
+
+    return 'uploads/' . basename($out);
 }
 
-/* ===== UPLOAD ===== */
+/* ===============================
+   UPLOAD & LƯU DB
+================================ */
 $error = '';
 
 if (isset($_POST['submit'])) {
@@ -56,9 +62,8 @@ if (isset($_POST['submit'])) {
     } else {
 
         $invoiceType = $_POST['invoice_type'];
-
         $uploadDir = __DIR__ . '/uploads/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir,0777,true);
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
         $fileName = time().'_'.basename($_FILES['image']['name']);
         $realPath = $uploadDir.$fileName;
@@ -66,24 +71,33 @@ if (isset($_POST['submit'])) {
 
         if (move_uploaded_file($_FILES['image']['tmp_name'], $realPath)) {
 
-$stmt = $db->prepare("
-    INSERT INTO ocr_history (user_id, image_path, invoice_type, status, created_at)
-    VALUES (?, ?, ?, 'processing', datetime('now','localtime'))
-");
-$stmt->execute([
-    $_SESSION['user_id'],
-    $publicPath,
-    $invoiceType
-]);
+            // Chuyển giá trị từ form thành ID bảng invoice_types
+            $invoiceTypeStmt = $db->prepare("SELECT id FROM invoice_types WHERE name = ?");
+            $invoiceTypeStmt->execute([$invoiceType]);
+            $invoiceTypeId = $invoiceTypeStmt->fetchColumn();
 
-// ⭐ LẤY ID DÒNG VỪA TẠO
-$_SESSION['ocr_id'] = $db->lastInsertId();
+            if (!$invoiceTypeId) {
+                // Nếu chưa có loại hóa đơn trong DB, thêm mới
+                $insertType = $db->prepare("INSERT INTO invoice_types (name) VALUES (?)");
+                $insertType->execute([$invoiceType]);
+                $invoiceTypeId = $db->lastInsertId();
+            }
 
-// nhớ ảnh để OCR
-$_SESSION['last_image'] = $publicPath;
+            // Lưu lịch sử OCR
+            $stmt = $db->prepare("
+                INSERT INTO ocr_history (user_id, image_path, invoice_type_id, status, created_at)
+                VALUES (?, ?, ?, 'processing', datetime('now','localtime'))
+            ");
+            $stmt->execute([
+                $_SESSION['user_id'],
+                $publicPath,
+                $invoiceTypeId
+            ]);
 
+            $_SESSION['ocr_id'] = $db->lastInsertId();
+            $_SESSION['last_image'] = $publicPath;
 
-            // xử lý ảnh (chưa OCR)
+            // Tiền xử lý ảnh
             $_SESSION['processed_image'] = preprocessImage($realPath);
 
             header("Location: result.php");
@@ -100,51 +114,149 @@ $_SESSION['last_image'] = $publicPath;
 <head>
 <meta charset="UTF-8">
 <title>Upload OCR</title>
-<link rel="stylesheet" href="style.css">
+
 <style>
-body{background:linear-gradient(135deg,#eef2ff,#f8fafc);font-family:Arial}
-.header{background:#0b5ed7;color:#fff;padding:15px 30px;display:flex;justify-content:space-between}
-.header a{color:#fff;margin-left:15px;text-decoration:none}
-.container{max-width:800px;margin:30px auto;background:#fff;padding:30px;border-radius:16px;box-shadow:0 15px 35px rgba(0,0,0,.15)}
-.upload-box{border:2px dashed #0b5ed7;border-radius:16px;padding:25px;text-align:center}
-.invoice-type{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:15px;margin:25px 0}
-.type-card{background:#f4f7fb;border-radius:14px;padding:18px;text-align:center;cursor:pointer;border:2px solid transparent}
-.type-card input{display:none}
-.type-card:has(input:checked){border-color:#0b5ed7;background:#e8f0ff;font-weight:600}
-button{padding:10px 25px;border:none;border-radius:10px;background:#0b5ed7;color:#fff}
+*{
+    box-sizing:border-box;
+    font-family:'Segoe UI','Roboto','Helvetica Neue',Arial,sans-serif;
+}
+body{
+    margin:0;
+    background:linear-gradient(135deg,#eef2ff,#f8fafc);
+    color:#1f2937;
+}
+
+/* HEADER */
+.header{
+    background:#0b5ed7;
+    color:#fff;
+    padding:16px 40px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+.header .logo{
+    font-size:20px;
+    font-weight:700;
+}
+.header a{
+    color:#fff;
+    margin-left:18px;
+    text-decoration:none;
+    font-weight:500;
+}
+
+/* CONTAINER */
+.container{
+    max-width:860px;
+    margin:40px auto;
+    background:#fff;
+    padding:40px;
+    border-radius:18px;
+    box-shadow:0 20px 40px rgba(0,0,0,.12);
+}
+
+/* UPLOAD BOX */
+.upload-box{
+    border:2px dashed #0b5ed7;
+    border-radius:18px;
+    padding:35px;
+    text-align:center;
+}
+.upload-box input[type=file]{
+    font-size:15px;
+    margin-bottom:25px;
+}
+
+/* INVOICE TYPE */
+.invoice-type{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+    gap:16px;
+    margin:30px 0;
+}
+.type-card{
+    background:#f4f7fb;
+    border-radius:16px;
+    padding:18px 10px;
+    text-align:center;
+    cursor:pointer;
+    border:2px solid transparent;
+    transition:.25s;
+    font-size:15px;
+}
+.type-card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 8px 18px rgba(0,0,0,.08);
+}
+.type-card input{
+    display:none;
+}
+.type-card:has(input:checked){
+    border-color:#0b5ed7;
+    background:#e8f0ff;
+    font-weight:600;
+}
+
+/* BUTTON */
+button{
+    padding:12px 34px;
+    border:none;
+    border-radius:14px;
+    background:#0b5ed7;
+    color:#fff;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    transition:.25s;
+}
+button:hover{
+    background:#094cb8;
+    transform:scale(1.03);
+}
+
+/* ERROR */
+.error{
+    color:#dc2626;
+    text-align:center;
+    margin-top:18px;
+    font-weight:500;
+}
 </style>
 </head>
 
 <body>
+
 <div class="header">
-    <div class="logo">Scan2Text</div>
+    <div class="logo">📸 Scan2Text</div>
     <nav>
         <a href="history.php">Lịch sử</a>
         <a href="index.php">Trang chủ</a>
-        <a href="\CN\logout.php">Đăng xuất</a>
+        <a href="/CN/logout.php">Đăng xuất</a>
     </nav>
 </div>
 
 <div class="container">
-<h2 style="text-align:center">📄 Tải ảnh hóa đơn</h2>
+    <h2 style="text-align:center;margin-bottom:25px">📄 Tải ảnh hóa đơn</h2>
 
-<form method="post" enctype="multipart/form-data" class="upload-box">
-<input type="file" name="image" required>
+    <form method="post" enctype="multipart/form-data" class="upload-box">
+        <input type="file" name="image" accept="image/*" required>
 
-<div class="invoice-type">
-<label class="type-card"><input type="radio" name="invoice_type" value="an_uong">🍜<br>Ăn uống</label>
-<label class="type-card"><input type="radio" name="invoice_type" value="mua_sam">🛍️<br>Mua sắm</label>
-<label class="type-card"><input type="radio" name="invoice_type" value="di_chuyen">🚕<br>Di chuyển</label>
-<label class="type-card"><input type="radio" name="invoice_type" value="y_te">🏥<br>Y tế</label>
-<label class="type-card"><input type="radio" name="invoice_type" value="khac">📄<br>Khác</label>
+        <div class="invoice-type">
+            <label class="type-card"><input type="radio" name="invoice_type" value="Ăn uống">🍜<br>Ăn uống</label>
+            <label class="type-card"><input type="radio" name="invoice_type" value="Mua sắm">🛍️<br>Mua sắm</label>
+            <label class="type-card"><input type="radio" name="invoice_type" value="Di chuyển">🚕<br>Di chuyển</label>
+            <label class="type-card"><input type="radio" name="invoice_type" value="Y tế">🏥<br>Y tế</label>
+            <label class="type-card"><input type="radio" name="invoice_type" value="Khác">📄<br>Khác</label>
+        </div>
+
+        <button name="submit">📤 Tải lên & Xử lý</button>
+    </form>
+
+    <?php if($error): ?>
+        <p class="error"><?= htmlspecialchars($error) ?></p>
+    <?php endif; ?>
 </div>
 
-<button name="submit">📤 Tải lên</button>
-</form>
-
-<?php if($error): ?>
-<p style="color:red;text-align:center;margin-top:15px"><?= $error ?></p>
-<?php endif; ?>
-</div>
 </body>
 </html>

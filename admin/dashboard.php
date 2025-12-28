@@ -37,6 +37,7 @@ body {
     background: linear-gradient(to bottom right, #f0f4f8, #d9e2ec);
     min-height: 100vh;
 }
+
 .dashboard-row {
     display: flex;
     flex-wrap: wrap;
@@ -44,52 +45,77 @@ body {
     justify-content: center;
     margin-top: 20px;
 }
+
 .dashboard-card {
     flex: 1 1 220px;
     max-width: 260px;
     background: #fff;
-    border-radius: 15px;
+    border-radius: 16px;
     box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-    padding: 20px;
+    padding: 25px 20px;
     text-align: center;
-    transition: transform 0.3s, box-shadow 0.3s;
+    transition: all 0.35s ease;
 }
+
 .dashboard-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.18);
 }
-.dashboard-card img {
+
+.dashboard-card i {
+    font-size: 42px;
     margin-bottom: 15px;
 }
+
+.icon-user { color: #0d6efd; }
+.icon-invoice { color: #6610f2; }
+.icon-error { color: #dc3545; }
+.icon-success { color: #198754; }
+
+.dashboard-card h5 {
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #555;
+}
+
+.dashboard-card p {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0;
+}
+
 canvas {
     background: #fff;
-    border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
 }
 </style>
-
 <div class="dashboard-row">
   <div class="dashboard-card">
-    <img src="assets/images/user_icon.png" width="50">
+    <i class="fa-solid fa-users icon-user"></i>
     <h5>Người dùng</h5>
     <p><?= $tongNguoiDung ?></p>
   </div>
+
   <div class="dashboard-card">
-    <img src="assets/images/invoice_icon.png" width="50">
+    <i class="fa-solid fa-file-invoice icon-invoice"></i>
     <h5>Hóa đơn</h5>
     <p><?= $tongHoaDon ?></p>
   </div>
+
   <div class="dashboard-card">
-    <img src="assets/images/error_icon.png" width="50">
+    <i class="fa-solid fa-triangle-exclamation icon-error"></i>
     <h5>Lỗi hôm nay</h5>
     <p><?= $loiHomNay ?></p>
   </div>
+
   <div class="dashboard-card">
-    <img src="assets/images/success_icon.png" width="50">
+    <i class="fa-solid fa-circle-check icon-success"></i>
     <h5>Tỷ lệ thành công</h5>
     <p><?= $tyLeThanhCong ?>%</p>
   </div>
 </div>
+
 
 <div class="mt-4" style="max-width:1000px; width:90%; margin:30px auto; height:250px;">
   <canvas id="hoaDonChart"></canvas>

@@ -1,7 +1,6 @@
 <?php
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
-
 session_start();
 
 if (!isset($_SESSION['user_id'])) {
@@ -19,112 +18,77 @@ $image = $_SESSION['last_image'];
 /* ===== OCR ===== */
 $cmd = "tesseract " . escapeshellarg($image) .
        " stdout -l vie --psm 6 -c preserve_interword_spaces=1";
-
 $output = shell_exec($cmd);
 $ocr_text = trim($output);
 
-/* ===== LƯU DB ===== */
+/* ===== SAVE DB ===== */
 require __DIR__ . '/../init_db.php';
-
 if ($ocr_text !== '' && isset($_SESSION['ocr_id'])) {
-    $stmt = $db->prepare("
-        UPDATE ocr_history
-        SET result = ?, status = 'success'
-        WHERE id = ?
-    ");
-    $stmt->execute([
-        $ocr_text,
-        $_SESSION['ocr_id']
-    ]);
+    $stmt = $db->prepare("UPDATE ocr_history SET result=?, status='success' WHERE id=?");
+    $stmt->execute([$ocr_text, $_SESSION['ocr_id']]);
 }
 
-// tránh insert lại
-unset($_SESSION['ocr_id']);
-unset($_SESSION['last_image']);
+unset($_SESSION['ocr_id'], $_SESSION['last_image']);
 ?>
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
 <title>Kết quả OCR | Scan2Text</title>
-<link rel="stylesheet" href="style.css">
+
 <style>
 body{
     margin:0;
-    font-family:'Segoe UI', Tahoma, sans-serif;
-    background:#eef2f7;
-    color:#333;
+    font-family:'Segoe UI',sans-serif;
+    background:linear-gradient(135deg,#eef2ff,#fdfdfd);
 }
-
-/* ===== HEADER ===== */
 .header{
     background:#0b5ed7;
     color:#fff;
+    padding:18px 40px;
     display:flex;
     justify-content:space-between;
     align-items:center;
-    padding:18px 40px;
-    box-shadow:0 4px 8px rgba(0,0,0,0.05);
 }
-.header .logo{
-    font-size:1.6rem;
-    font-weight:700;
-}
-.header nav a{
-    margin-left:25px;
-    color:#fff;
-    font-weight:500;
-}
+.header a{color:#fff;margin-left:20px;font-weight:500}
 
-/* ===== CONTAINER ===== */
 .container{
-    max-width:900px;
-    margin:40px auto 80px;
+    max-width:1000px;
+    margin:40px auto;
     background:#fff;
-    padding:30px;
-    border-radius:16px;
-    box-shadow:0 15px 35px rgba(0,0,0,.15);
+    padding:35px;
+    border-radius:20px;
+    box-shadow:0 25px 60px rgba(0,0,0,.2);
+    animation:fadeUp .6s ease;
 }
-h2{
-    text-align:center;
-    color:#0b5ed7;
-    margin-bottom:30px;
-}
-h4{
-    margin-top:20px;
-    margin-bottom:12px;
+@keyframes fadeUp{
+    from{opacity:0;transform:translateY(30px)}
+    to{opacity:1;transform:none}
 }
 
-/* ===== IMAGE ===== */
-.img-container{
-    text-align:center;
-    margin-bottom:20px;
-}
-.img-container img{
-    max-width:100%;
-    border-radius:12px;
-    box-shadow:0 8px 25px rgba(0,0,0,0.1);
-    transition:0.3s;
-}
-.img-container img:hover{
-    transform:scale(1.03);
-}
+h2{text-align:center;color:#0b5ed7}
 
-/* ===== TEXTAREA ===== */
+.img-preview{
+    text-align:center;
+}
+.img-preview img{
+    max-width:260px;
+    border-radius:14px;
+    cursor:pointer;
+    transition:.3s;
+}
+.img-preview img:hover{transform:scale(1.07)}
+
 textarea{
     width:100%;
-    min-height:300px;
+    min-height:260px;
     padding:18px;
-    font-size:14px;
-    line-height:1.6;
-    border-radius:12px;
+    border-radius:14px;
     border:1px solid #ccc;
-    background:#f4f6f9;
-    resize:none;
+    background:#f6f8fc;
+    font-size:14px;
 }
 
-/* ===== ACTION BUTTONS ===== */
 .actions{
     margin-top:25px;
     display:flex;
@@ -133,81 +97,121 @@ textarea{
     flex-wrap:wrap;
 }
 .actions button{
-    padding:12px 28px;
+    padding:12px 26px;
     border:none;
-    border-radius:10px;
+    border-radius:12px;
     background:#0b5ed7;
     color:#fff;
     font-weight:600;
-    font-size:1rem;
     cursor:pointer;
-    transition:0.25s;
+    transition:.25s;
 }
 .actions button:hover{
-    background:#094bb5;
-    transform:translateY(-2px);
+    transform:translateY(-3px);
+    box-shadow:0 10px 20px rgba(11,94,215,.4);
 }
 
-/* ===== FOOTER ===== */
-.footer{
-    background:#0b5ed7;
-    color:#fff;
-    padding:20px 40px;
-    text-align:center;
-    font-size:0.9rem;
-    box-shadow:0 -4px 8px rgba(0,0,0,0.05);
+/* ===== MODAL ===== */
+.modal{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.65);
+    display:none;
+    justify-content:center;
+    align-items:center;
+    z-index:999;
 }
-
-/* ===== RESPONSIVE ===== */
-@media(max-width:700px){
-    .container{
-        padding:20px;
-    }
-    .actions{
-        flex-direction:column;
-    }
-    .actions button{
-        width:100%;
-    }
+.modal-content{
+    background:#fff;
+    padding:30px;
+    border-radius:18px;
+    max-width:90%;
+    max-height:90%;
+    overflow:auto;
+    animation:zoom .4s ease;
+}
+@keyframes zoom{
+    from{transform:scale(.8);opacity:0}
+    to{transform:scale(1);opacity:1}
+}
+.modal img{
+    max-width:100%;
+    border-radius:14px;
+}
+.close{
+    text-align:right;
+    font-size:20px;
+    cursor:pointer;
 }
 </style>
 </head>
 
 <body>
 
-<!-- HEADER -->
 <div class="header">
-    <div class="logo">Scan2Text</div>
+    <div><b>Scan2Text</b></div>
     <nav>
-        <a href="upload.php">Tải ảnh OCR</a>
+        <a href="upload.php">OCR</a>
         <a href="history.php">Lịch sử</a>
         <a href="index.php">Trang chủ</a>
-        <a href="\CN\logout.php">Đăng xuất</a>
+        <a href="/CN/logout.php">Đăng xuất</a>
     </nav>
 </div>
 
-<!-- MAIN CONTAINER -->
 <div class="container">
-    <h2>📄 Kết quả OCR</h2>
+    <h2>📄 KẾT QUẢ OCR</h2>
 
-    <div class="img-container">
-        <img src="<?= htmlspecialchars($image) ?>" alt="Ảnh OCR">
+    <div class="img-preview">
+        <p><b>Ảnh gốc (bấm để xem chi tiết)</b></p>
+        <img src="<?= htmlspecialchars($image) ?>" onclick="openModal()">
     </div>
 
-    <h4>Văn bản nhận dạng:</h4>
+    <h4>📑 Văn bản nhận dạng:</h4>
     <textarea readonly><?= htmlspecialchars($ocr_text) ?></textarea>
 
     <div class="actions">
-        <a href="upload.php"><button>📤 Tải ảnh khác</button></a>
+        <button onclick="translateText()">🌐 Dịch văn bản</button>
+        <a href="upload.php"><button>📤 Ảnh khác</button></a>
         <a href="history.php"><button>📜 Lịch sử</button></a>
-        <a href="index.php"><button>🏠 Trang chủ</button></a>
+    </div>
+
+    <div id="translateBox" style="display:none;margin-top:20px">
+        <h4>📝 Bản dịch:</h4>
+        <textarea id="translatedText" readonly></textarea>
     </div>
 </div>
 
-<!-- FOOTER -->
-<div class="footer">
-    © <?= date('Y') ?> Scan2Text · Hệ thống OCR · PHP & SQLite
+<!-- MODAL IMAGE -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <div class="close" onclick="closeModal()">✖</div>
+        <img src="<?= htmlspecialchars($image) ?>">
+    </div>
 </div>
+
+<script>
+function openModal(){
+    document.getElementById('modal').style.display='flex';
+}
+function closeModal(){
+    document.getElementById('modal').style.display='none';
+}
+
+/* ===== TRANSLATE (DEMO) ===== */
+async function translateText(){
+    const text = <?= json_encode($ocr_text) ?>;
+    if(!text.trim()) return alert("Không có nội dung để dịch");
+
+    const res = await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=en&dt=t&q="+encodeURIComponent(text));
+    const data = await res.json();
+
+    let result = "";
+    data[0].forEach(i => result += i[0]);
+
+    document.getElementById("translateBox").style.display="block";
+    document.getElementById("translatedText").value = result;
+}
+</script>
 
 </body>
 </html>

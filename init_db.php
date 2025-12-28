@@ -25,10 +25,7 @@ if (!file_exists($dbFile)) {
 try {
     $db = new PDO("sqlite:" . $dbFile);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // ⚠️ CỰC KỲ QUAN TRỌNG: BẬT KHÓA NGOẠI SQLITE
-    $db->exec("PRAGMA foreign_keys = ON");
-
+    $db->exec("PRAGMA foreign_keys = ON"); // Bật khóa ngoại
 } catch (PDOException $e) {
     die("❌ Lỗi kết nối DB: " . $e->getMessage());
 }
@@ -56,11 +53,12 @@ CREATE TABLE IF NOT EXISTS ocr_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     image_path TEXT,
-    invoice_type TEXT,
+    invoice_type_id INTEGER,
     result TEXT,
     status TEXT DEFAULT 'success',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(invoice_type_id) REFERENCES invoice_types(id) ON DELETE SET NULL
 )
 ");
 
@@ -80,6 +78,59 @@ CREATE TABLE IF NOT EXISTS invalid_data (
 ");
 
 /* ===============================
+   BẢNG INVOICE TYPES
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS invoice_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT
+)
+");
+
+/* ===============================
+   BẢNG ACTIVITY LOGS
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    target_table TEXT,
+    target_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+)
+");
+
+/* ===============================
+   BẢNG USER SETTINGS
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS user_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    setting_name TEXT NOT NULL,
+    setting_value TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+)
+");
+
+/* ===============================
+   BẢNG NOTIFICATIONS
+================================ */
+$db->exec("
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'unread',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+)
+");
+
+/* ===============================
    TẠO ADMIN MẶC ĐỊNH
 ================================ */
 $checkAdmin = $db->query("
@@ -94,3 +145,5 @@ if ($checkAdmin == 0) {
     ");
     $stmt->execute(["admin", $adminPass]);
 }
+
+//echo "✅ Database đã được thiết lập với các bảng mở rộng!";
